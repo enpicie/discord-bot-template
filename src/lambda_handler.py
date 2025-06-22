@@ -22,4 +22,5 @@ def lambda_handler(event, context):
         data = body["data"]
         print(f"data: {data}") # debug print
 
+    print(f"response: {response}") # debug print
     return response
