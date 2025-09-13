@@ -15,6 +15,13 @@ permissions:
   contents: write
 
 jobs:
+  register-commands:
+    uses: ./.github/workflows/workflow-register-commands.yml
+    with:
+      app_id: ${{ vars.DISCORD_APP_ID_PROD }}
+    secrets:
+      DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN_PROD }}
+
   read-config:
     runs-on: ubuntu-latest
     outputs:
