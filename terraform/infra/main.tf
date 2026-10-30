@@ -49,9 +49,9 @@ resource "aws_lambda_function" "bot_lambda" {
     variables = {
       REGION                        = var.aws_region
       PUBLIC_KEY                    = var.discord_public_key
-      DISCORD_BOT_TOKEN_SECRET_NAME = aws_secretsmanager_secret.discord_bot_token.name # secrets.tf
-      DYNAMODB_TABLE_NAME           = aws_dynamodb_table.bot_table.name                # dynamodb.tf
-      DEFERRED_WORKER_QUEUE_URL     = aws_sqs_queue.deferred_worker.url                # deferred_worker.tf
+      DISCORD_BOT_TOKEN_SECRET_NAME = aws_secretsmanager_secret.discord_bot_token.name # [feature:bot_token]
+      DYNAMODB_TABLE_NAME           = aws_dynamodb_table.bot_table.name                # [feature:dynamodb]
+      DEFERRED_WORKER_QUEUE_URL     = aws_sqs_queue.deferred_worker.url                # [feature:deferred_worker]
     }
   }
 

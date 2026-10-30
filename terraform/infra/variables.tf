@@ -39,6 +39,7 @@ variable "app_lambda_layer_hash_s3_key" {
   type        = string
 }
 
+# [feature:deferred_worker]
 variable "deferred_worker_lambda_layer_s3_key" {
   description = "S3 key for .zip of Lambda layer built for the deferred worker"
   type        = string
@@ -48,14 +49,17 @@ variable "deferred_worker_lambda_layer_hash_s3_key" {
   description = "S3 key for .hash file for Lambda layer built for the deferred worker"
   type        = string
 }
+# [/feature:deferred_worker]
 
 variable "discord_public_key" {
   description = "Public Key for Discord bot verification"
   type        = string
 }
 
+# [feature:bot_token]
 variable "discord_bot_token" {
   description = "Discord bot token — stored in Secrets Manager, fetched by Lambdas at runtime"
   type        = string
   sensitive   = true
 }
+# [/feature:bot_token]

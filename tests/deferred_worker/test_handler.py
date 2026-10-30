@@ -37,6 +37,7 @@ class TestDeferredWorkerHandler(unittest.TestCase):
         services_patcher.start()
         self.addCleanup(services_patcher.stop)
 
+    # [feature:examples]
     def test_known_command_posts_its_result_as_followup(self):
         worker_handler.handler(_sqs_event("slow-echo", "hi there"), Mock())
 
@@ -44,6 +45,7 @@ class TestDeferredWorkerHandler(unittest.TestCase):
         self.assertEqual(args[:2], ("999", "interaction-token"))
         self.assertIn("hi there", kwargs["content"])
         self.assertEqual(kwargs["allowed_mentions"], {"parse": []})
+    # [/feature:examples]
 
     def test_unknown_command_tells_the_user(self):
         worker_handler.handler(_sqs_event("not-registered"), Mock())

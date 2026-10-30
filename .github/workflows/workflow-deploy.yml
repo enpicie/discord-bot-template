@@ -46,12 +46,14 @@ on:
         required: true
       AWS_ROLE_ARN_S3:
         required: true
-      DISCORD_BOT_TOKEN:
-        required: true
+      DISCORD_BOT_TOKEN:  # [feature:bot_token]
+        required: true  # [feature:bot_token]
 
+# [feature:deferred_worker]
 env:
   # MIRROR: terraform/infra/deferred_worker.tf local.deferred_worker_name — keep in sync.
   DEFERRED_WORKER_NAME: ${{ inputs.app_name }}-deferred-worker
+# [/feature:deferred_worker]
 
 jobs:
   deploy-via-terraform:
@@ -92,7 +94,8 @@ jobs:
           s3_bucket_name: ${{ inputs.artifact_s3_bucket }}
           aws_role_arn: ${{ secrets.AWS_ROLE_ARN_S3 }}
 
-      # ── Deferred worker Lambda (remove both steps if you drop the feature) ─
+      # [feature:deferred_worker]
+      # ── Deferred worker Lambda ────────────────────────────────────────────
       - name: Build and Upload Lambda Layer Artifact to S3 - Deferred Worker Lambda
         id: build_layer_deferred_worker
         uses: enpicie/gh-action-workflow-build-python-lambda-layer-zip@v2.2.0
@@ -113,6 +116,7 @@ jobs:
           artifact_name: ${{ env.DEFERRED_WORKER_NAME }}-latest
           s3_bucket_name: ${{ inputs.artifact_s3_bucket }}
           aws_role_arn: ${{ secrets.AWS_ROLE_ARN_S3 }}
+      # [/feature:deferred_worker]
 
       - name: Log Terraform input variables
         shell: bash
@@ -128,10 +132,12 @@ jobs:
           echo "app_lambda_layer_s3_key=${APP_LAMBDA_LAYER_S3_KEY}"
           echo "app_lambda_layer_hash_s3_key=${APP_LAMBDA_LAYER_HASH_S3_KEY}"
 
+          # [feature:deferred_worker]
           echo "=== Deferred Worker Lambda ==="
           echo "deferred_worker_name=${DEFERRED_WORKER_NAME}"
           echo "deferred_worker_lambda_layer_s3_key=${DEFERRED_WORKER_LAMBDA_LAYER_S3_KEY}"
           echo "deferred_worker_lambda_layer_hash_s3_key=${DEFERRED_WORKER_LAMBDA_LAYER_HASH_S3_KEY}"
+          # [/feature:deferred_worker]
         env:
           APP_NAME: '${{ inputs.app_name }}'
           DEPLOYMENT_ENV: '${{ inputs.deployment_env }}'
@@ -140,8 +146,8 @@ jobs:
           ARTIFACT_S3_BUCKET: '${{ inputs.artifact_s3_bucket }}'
           APP_LAMBDA_LAYER_S3_KEY: '${{ steps.build_layer.outputs.s3_artifact_key }}'
           APP_LAMBDA_LAYER_HASH_S3_KEY: '${{ steps.build_layer.outputs.s3_requirements_key }}'
-          DEFERRED_WORKER_LAMBDA_LAYER_S3_KEY: '${{ steps.build_layer_deferred_worker.outputs.s3_artifact_key }}'
-          DEFERRED_WORKER_LAMBDA_LAYER_HASH_S3_KEY: '${{ steps.build_layer_deferred_worker.outputs.s3_requirements_key }}'
+          DEFERRED_WORKER_LAMBDA_LAYER_S3_KEY: '${{ steps.build_layer_deferred_worker.outputs.s3_artifact_key }}'  # [feature:deferred_worker]
+          DEFERRED_WORKER_LAMBDA_LAYER_HASH_S3_KEY: '${{ steps.build_layer_deferred_worker.outputs.s3_requirements_key }}'  # [feature:deferred_worker]
 
       - name: Deploy Application Config via Terraform
         uses: enpicie/gh-action-workflow-terraform-run@v0.3.1
@@ -159,7 +165,7 @@ jobs:
             TF_VAR_bucket_name=${{ inputs.artifact_s3_bucket }}
             TF_VAR_app_lambda_layer_s3_key=${{ steps.build_layer.outputs.s3_artifact_key }}
             TF_VAR_app_lambda_layer_hash_s3_key=${{ steps.build_layer.outputs.s3_requirements_key }}
-            TF_VAR_deferred_worker_lambda_layer_s3_key=${{ steps.build_layer_deferred_worker.outputs.s3_artifact_key }}
-            TF_VAR_deferred_worker_lambda_layer_hash_s3_key=${{ steps.build_layer_deferred_worker.outputs.s3_requirements_key }}
+            TF_VAR_deferred_worker_lambda_layer_s3_key=${{ steps.build_layer_deferred_worker.outputs.s3_artifact_key }}  # [feature:deferred_worker]
+            TF_VAR_deferred_worker_lambda_layer_hash_s3_key=${{ steps.build_layer_deferred_worker.outputs.s3_requirements_key }}  # [feature:deferred_worker]
             TF_VAR_discord_public_key=${{ inputs.discord_public_key }}
-            TF_VAR_discord_bot_token=${{ secrets.DISCORD_BOT_TOKEN }}
+            TF_VAR_discord_bot_token=${{ secrets.DISCORD_BOT_TOKEN }}  # [feature:bot_token]

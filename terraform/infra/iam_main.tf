@@ -1,6 +1,6 @@
 # Execution role for the bot Lambda. Each optional feature grants its own
-# permissions to this role in its own file (dynamodb.tf, deferred_worker.tf,
-# secrets.tf), so deleting a feature's file also removes its grants.
+# permissions to this role in its own file, so each feature's grants live
+# next to its resources.
 resource "aws_iam_role" "lambda_exec_role" {
   name = "LambdaExecutionRole-${var.app_name}-${var.deployment_env}"
 

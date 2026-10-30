@@ -1,0 +1,63 @@
+# Template-only: validates what init_bot.py generates. Removed from generated bots.
+# Never deploys — it builds each generated bot and runs that bot's own checks.
+name: Template CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generator-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run init_bot.py unit tests
+        run: python -m unittest tests.test_init_bot -v
+
+  generated-bot:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Each optional feature dropped alone, all dropped, and everything kept.
+        flags:
+          - ''
+          - '--no-dynamodb'
+          - '--no-deferred-worker'
+          - '--no-bot-token'
+          - '--no-examples'
+          - '--no-dynamodb --no-deferred-worker --no-bot-token'
+          - '--no-dynamodb --no-deferred-worker --no-bot-token --no-examples'
+    name: generated-bot (${{ matrix.flags || 'all features' }})
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Generate bot
+        run: |
+          rsync -a --exclude .git ./ "$RUNNER_TEMP/bot/"
+          cd "$RUNNER_TEMP/bot"
+          python init_bot.py --name ci-test-bot --yes ${{ matrix.flags }}
+
+      - name: Tests
+        working-directory: ${{ runner.temp }}/bot
+        run: make test
+
+      - name: Lint
+        working-directory: ${{ runner.temp }}/bot
+        run: make lint
+
+      - name: Terraform validate
+        working-directory: ${{ runner.temp }}/bot/terraform/infra
+        run: |
+          terraform init -backend=false -input=false
+          terraform validate

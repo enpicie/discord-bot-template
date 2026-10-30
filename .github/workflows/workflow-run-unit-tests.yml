@@ -37,8 +37,8 @@ jobs:
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
 
-      # Syntax + reference check only: no backend, no AWS credentials. Catches a
-      # dangling reference after deleting a feature file (see README).
+      # Syntax + reference check only: no backend, no AWS credentials. Runs
+      # before deploy, so a broken reference fails here instead of mid-apply.
       - name: Validate terraform/infra
         working-directory: ./terraform/infra
         run: |

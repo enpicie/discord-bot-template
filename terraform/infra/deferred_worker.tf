@@ -1,9 +1,7 @@
 # ── Feature: Deferred worker (callbacks) ─────────────────────────────────────
 # Commands that can't answer inside Discord's 3s deadline reply with a
 # placeholder and enqueue here; the worker Lambda posts the real answer as a
-# followup. To remove: delete this file, the DEFERRED_WORKER_QUEUE_URL env line
-# in main.tf, and the deferred_worker_* blocks in dynamodb.tf and secrets.tf
-# (see README).
+# followup.
 
 locals {
   # MIRROR: .github/workflows/workflow-deploy.yml uploads the worker zip under
@@ -78,8 +76,8 @@ resource "aws_lambda_function" "deferred_worker" {
   environment {
     variables = {
       REGION                        = var.aws_region
-      DISCORD_BOT_TOKEN_SECRET_NAME = aws_secretsmanager_secret.discord_bot_token.name # secrets.tf
-      DYNAMODB_TABLE_NAME           = aws_dynamodb_table.bot_table.name                # dynamodb.tf
+      DISCORD_BOT_TOKEN_SECRET_NAME = aws_secretsmanager_secret.discord_bot_token.name # [feature:bot_token]
+      DYNAMODB_TABLE_NAME           = aws_dynamodb_table.bot_table.name                # [feature:dynamodb]
     }
   }
 

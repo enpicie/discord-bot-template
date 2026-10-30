@@ -3,9 +3,7 @@
 # channel posts, guild lookups — see src/utils/discord_api_helper.py).
 # Interaction replies and deferred followups do NOT need it. The Lambdas get
 # the secret's NAME as an env var and fetch the value at runtime; the token is
-# never a plaintext env var. To remove: delete this file and the
-# DISCORD_BOT_TOKEN_SECRET_NAME env lines in main.tf and deferred_worker.tf
-# (see README).
+# never a plaintext env var.
 
 resource "aws_secretsmanager_secret" "discord_bot_token" {
   name        = "${var.app_name}-discord-bot-token-${var.deployment_env}"
@@ -34,8 +32,8 @@ resource "aws_iam_role_policy" "lambda_secrets_policy" {
   })
 }
 
-# Deferred worker's token access. Delete this block too if you remove the
-# deferred worker but keep the secret.
+# [feature:deferred_worker]
+# Deferred worker's token access.
 resource "aws_iam_role_policy" "deferred_worker_secrets_policy" {
   name = "LambdaSecretsPolicy-${local.deferred_worker_name}-${var.deployment_env}"
   role = aws_iam_role.deferred_worker_role.id
@@ -52,3 +50,4 @@ resource "aws_iam_role_policy" "deferred_worker_secrets_policy" {
     ]
   })
 }
+# [/feature:deferred_worker]

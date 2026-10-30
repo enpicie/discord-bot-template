@@ -1,8 +1,70 @@
+<!-- [template-only] -->
 # discord-bot-template
 
-Starting point for a serverless Discord bot on AWS Lambda. It's the same
-foundation as [Adomi-san](https://github.com/enpicie/adomi-san-bot) with the
-Adomi-specific features (start.gg, leagues, scheduling, Sheets) taken out.
+Starter for a serverless Discord bot on AWS Lambda. It's the same foundation as
+[Adomi-san](https://github.com/enpicie/adomi-san-bot) with the Adomi-specific
+features taken out.
+
+## Start a new bot
+
+```bash
+gh repo create enpicie/<bot-name> --template enpicie/discord-bot-template --private --clone
+```
+
+```bash
+cd <bot-name> && python init_bot.py
+```
+
+`init_bot.py` asks for the bot's name and which optional features to keep:
+
+| Feature | Adds |
+|---|---|
+| DynamoDB | One table for bot state, keyed per Discord server |
+| Deferred worker | SQS queue + worker Lambda for commands that take longer than Discord's 3s deadline |
+| Bot token secret | Bot token in Secrets Manager, for Discord REST API calls (roles, channel posts) |
+| Examples | `/note-set`, `/note-get`, `/slow-echo`, `/server-info` example commands (`/ping` and `/help` always stay) |
+
+The script then:
+1. Removes everything for the features you dropped: Terraform, Python, pipeline
+   steps, tests and docs.
+2. Sets the name everywhere, and deletes itself and the other template-only files.
+3. Prints the remaining one-time setup (Discord apps, `gh` commands for repo
+   secrets, the first push) as copyable commands.
+
+What's left is a normal repo with no template machinery in it.
+
+Run it without prompts by passing flags. `python init_bot.py --help` lists them:
+
+```bash
+python init_bot.py --name my-bot --no-deferred-worker --no-examples --yes
+```
+
+## How the template is built
+
+Lines that belong to an optional feature carry a marker comment naming the
+feature. A marker at the end of a line covers that line. A marker alone on its
+line opens or closes a block. Files that belong entirely to one feature are
+listed in `FEATURE_PATHS`. The format is documented at the top of
+[init_bot.py](./init_bot.py).
+
+When you change the template, mark any new feature-specific line. Two checks
+keep the markers honest:
+
+- `tests/test_init_bot.py` generates every feature combination, then checks that
+  no markers remain and that every Python file still compiles.
+- The **Template CI** workflow generates the combinations and runs the generated
+  bot's own `make test`, `make lint` and `terraform validate` on each. It runs
+  on pull requests and on demand. Nothing in this repo deploys: the bot
+  pipelines skip themselves here.
+
+Everything below this line becomes the new bot's README.
+
+---
+<!-- [/template-only] -->
+# my-discord-bot
+
+Serverless Discord bot on AWS Lambda, generated from
+[discord-bot-template](https://github.com/enpicie/discord-bot-template).
 
 Discord sends each slash command as an HTTP POST to API Gateway, which invokes
 the bot Lambda. The Lambda checks Discord's signature, looks the command up in
@@ -10,45 +72,34 @@ the command map, runs it, and returns the reply.
 
 ```
 Discord ──POST──▶ API Gateway ──▶ bot Lambda (src/) ──reply──▶ Discord
-                                    │   │   │
-                                    │   │   └─▶ Secrets Manager (bot token, for Discord REST calls)
-                                    │   └─────▶ DynamoDB (state per Discord server)
-                                    └─────────▶ SQS ──▶ deferred worker Lambda ──followup──▶ Discord
 ```
+<!-- [feature:dynamodb|deferred_worker|bot_token] -->
 
-Every piece is included and deployed by default. The **base** (Lambda + API
-Gateway + command discovery + pipelines) is required. The **three optional
-features** (DynamoDB, deferred worker, bot token secret) each sit in their own
-files and can be removed. See [Removing optional features](#removing-optional-features).
+The bot Lambda also uses:
+<!-- [/feature:dynamodb|deferred_worker|bot_token] -->
+- **DynamoDB** for state per Discord server ([Database](#database))  <!-- [feature:dynamodb] -->
+- **SQS → deferred worker Lambda** for commands that take longer than 3s ([Deferred commands](#deferred-commands))  <!-- [feature:deferred_worker] -->
+- **Secrets Manager** for the bot token, for Discord REST calls ([Bot token](#bot-token))  <!-- [feature:bot_token] -->
 
-## Starting a new bot
+## One-time setup
 
-1. **Create the repo.** Click "Use this template" on GitHub (or copy the files).
-2. **Name it.** In [config.env](./config.env), set `APP_NAME` to your bot's name
-   (lowercase, hyphens). Every AWS resource is named from it. **Nothing deploys
-   while it's still `my-discord-bot`.**
-3. **Make two Discord applications** in the
-   [Developer Portal](https://discord.com/developers/applications), one for dev
-   and one for prod. For each, copy:
-   - **Public Key** → `DISCORD_PUBLIC_KEY_DEV` / `_PROD` in `config.env` (public, safe to commit)
+1. **Discord apps.** Create a dev app and a prod app in the
+   [Developer Portal](https://discord.com/developers/applications). For each:
+   - **Public Key** → `DISCORD_PUBLIC_KEY_DEV` / `_PROD` in [config.env](./config.env) (public, safe to commit)
    - **Application ID** → repo **variable** `DISCORD_APP_ID_DEV` / `_PROD`
    - **Bot Token** (Bot tab → Reset Token) → repo **secret** `DISCORD_BOT_TOKEN_DEV` / `_PROD`
-4. **AWS access.** The pipelines use the org-level secrets
+2. **AWS access.** The pipelines use the org-level secrets
    `AWS_ROLE_ARN_LAMBDA_APIGW_DDB_SQS` (Terraform) and `AWS_ROLE_ARN_S3`
-   (artifact upload). Repos in the `enpicie` org inherit them, so there's nothing to set.
-5. **Deploy dev.** Push to any non-`main` branch. The Dev Pipeline runs tests,
-   builds and uploads the Lambda zips and layers, and runs Terraform.
-6. **Point Discord at it.** Copy the `interactions_endpoint_url` Terraform output
+   (artifact upload). Repos in the `enpicie` org inherit them.
+3. **Deploy dev.** Push to any non-`main` branch.
+4. **Point Discord at it.** Copy the `interactions_endpoint_url` Terraform output
    (in the deploy job's log) into the dev app's **General Information →
    Interactions Endpoint URL**. It has the shape
-   `https://<api-id>.execute-api.<region>.amazonaws.com/dev/<APP_NAME>`.
+   `https://<api-id>.execute-api.<region>.amazonaws.com/dev/my-discord-bot`.
    Discord pings it to verify when you save, and the bot answers the ping.
-7. **Register commands.** Run the Dev Pipeline from the Actions tab with
-   *Run Discord command registration* checked, or run
-   *Register Discord Bot Slash Commands* directly. Then invite the bot
+5. **Register commands.** Run the Dev Pipeline from the Actions tab with
+   *Run Discord command registration* checked. Invite the bot
    (OAuth2 → URL Generator → scopes `bot` + `applications.commands`) and try `/ping`.
-8. **Make it yours.** Edit the Project line in [CLAUDE.md](./CLAUDE.md), and
-   delete the example groups you don't want (`notes`, `deferred_example`).
 
 Prod works the same way: push a version tag (`1.0.0`) to run the Release
 Pipeline, which deploys prod and registers every command.
@@ -66,22 +117,22 @@ Commands are discovered from a single dict, `command_map`.
   command to be dispatched and registered.
 
 ```python
-"note-get": {
-    "function": notes_commands.note_get,          # (DiscordEvent, AWSServices) -> ResponseMessage
-    "description": "Show a saved note",           # ≤100 chars (Discord limit)
+"echo": {
+    "function": my_commands.echo,                 # (DiscordEvent, AWSServices) -> ResponseMessage
+    "description": "Repeat what you say",         # ≤100 chars (Discord limit)
     "params": [
         CommandParam(
-            name="name", description="Name of the note",
+            name="text", description="What to repeat",
             param_type=AppCommandOptionType.string, required=True, choices=None,
-            autocomplete=True,
-            autocomplete_handler=autocomplete_handlers.note_name_autocomplete,
+            # autocomplete=True, autocomplete_handler=my_handlers.text_autocomplete,
         ),
     ]
 },
 ```
 
 **To add a group:** create `src/commands/<group>/` with `__init__.py`,
-`<group>_commands.py` and `mapping.py`, then add its mapping to `command_map.py`.
+`<group>_commands.py` and `mapping.py`, then add one line for it to
+`command_map.py`.
 
 Error handling:
 - Raise `ValueError("message")` from a command, and the user sees that message.
@@ -92,26 +143,30 @@ Error handling:
 
 Command deletion isn't automated. If you rename or remove a command, delete the
 old one through Discord's API.
+<!-- [feature:examples] -->
 
 ## Example commands
 
-| Command | Group | Shows |
-|---|---|---|
-| `/ping` | `general` | The minimum: endpoint, signature check, dispatch |
-| `/help` | `general` | Reads the command map to list every command |
-| `/server-info` | `general` | A Discord REST call using the bot token from Secrets Manager |
-| `/note-set`, `/note-get` | `notes` | DynamoDB reads and writes, a permission check, autocomplete |
-| `/slow-echo` | `deferred_example` | The deferred pattern: ⏳ placeholder, then a followup from the worker |
+| Command | Shows |
+|---|---|
+| `/ping`, `/help` | The minimum: endpoint, signature check, dispatch; reading the command map |
+| `/note-set`, `/note-get` | DynamoDB reads and writes, a permission check, autocomplete |  <!-- [feature:dynamodb] -->
+| `/slow-echo` | The deferred pattern: ⏳ placeholder, then a followup from the worker |  <!-- [feature:deferred_worker] -->
+| `/server-info` | A Discord REST call using the bot token from Secrets Manager |  <!-- [feature:bot_token] -->
 
-## Deferred commands (callbacks)
+Delete the example groups (and their line in `command_map.py`) once you've
+built your own.
+<!-- [/feature:examples] -->
+<!-- [feature:deferred_worker] -->
+
+## Deferred commands
 
 Discord drops any reply that takes longer than **3 seconds**. Commands that might
 take longer (external APIs, bulk writes, file generation) are split in two:
 
-1. **Bot Lambda** ([deferred_example_commands.py](./src/commands/deferred_example/deferred_example_commands.py)):
-   validate the input (bad input still gets an instant reply), call
-   `deferred_dispatch.dispatch("<command>", event, aws_services)`, and return a
-   `⏳` placeholder.
+1. **Bot Lambda:** validate the input (bad input still gets an instant reply),
+   call `deferred_dispatch.dispatch("<command>", event, aws_services)`, and
+   return a `⏳` placeholder.
 2. **Worker Lambda** ([jobs/deferred_worker/](./jobs/deferred_worker/)): SQS
    triggers it with the whole interaction. It looks up the handler in
    `_COMMAND_HANDLERS`, runs it, and posts the result as a followup to the
@@ -126,34 +181,37 @@ If a handler raises, the worker posts the general error instead of re-raising.
 That stops SQS from re-running the command and posting a duplicate reply. A
 message that still fails 3 times (e.g. the followup POST itself failed) moves
 to the `-dlq` queue, where you can inspect it.
+<!-- [/feature:deferred_worker] -->
+<!-- [feature:dynamodb] -->
 
 ## Database
 
-There's one DynamoDB table (`<APP_NAME>-data-<env>`) with on-demand billing.
+There's one DynamoDB table (`my-discord-bot-data-<env>`) with on-demand billing.
 Every record for a Discord server shares `PK = SERVER#<server_id>`, and the
-`SK` prefix says what kind of record it is (`NOTE#<name>`, …), so one Query can
-return every record of a kind for a server.
-[src/database/](./src/database/) holds the access functions and dataclass
-models. `Note` is the pattern to copy: a `Keys` class, fields with `db_key`
-metadata, and `from_dynamodb`.
+`SK` prefix says what kind of record it is, so one Query can return every record
+of a kind for a server. [src/database/](./src/database/) holds the access
+functions and dataclass models. Each model has a `Keys` class, fields with
+`db_key` metadata, and `from_dynamodb`.
 
 To make a record expire automatically, set an `expires_at` attribute (epoch
-seconds). [tests/commands/test_notes_commands.py](./tests/commands/test_notes_commands.py)
-shows how to test against a fake table with `moto`.
+seconds). Test against a fake table with `moto` (`mock_aws`).
+<!-- [/feature:dynamodb] -->
+<!-- [feature:bot_token] -->
 
-## Bot token and secrets
+## Bot token
 
-Replying to a command and posting deferred followups don't need the bot token.
-It's only needed for **Discord REST calls** like assigning roles, posting to
-another channel, or reading guild info. For those:
+Replying to a command doesn't need the bot token. It's only needed for
+**Discord REST calls** like assigning roles, posting to another channel, or
+reading guild info. For those:
 
-- The token is stored in Secrets Manager (`<APP_NAME>-discord-bot-token-<env>`).
+- The token is stored in Secrets Manager (`my-discord-bot-discord-bot-token-<env>`).
 - The Lambdas get only the secret's **name** as an env var, and
   [discord_api_helper.py](./src/utils/discord_api_helper.py) fetches the value
   once per warm container.
 - It's never a plaintext env var, and it's never logged.
 
 Any other secret your bot needs should follow the same pattern.
+<!-- [/feature:bot_token] -->
 
 ## CI/CD
 
@@ -165,7 +223,7 @@ Any other secret your bot needs should follow the same pattern.
 | Manual | Register Discord Bot Slash Commands | register one command, a prefix (`note` = `note-*`), or `all` |
 
 Deploys run as one Terraform root (`terraform/infra`). State is stored in S3 at
-`projects/<APP_NAME>/<env>/infra.tfstate`, managed by
+`projects/my-discord-bot/<env>/infra.tfstate`, managed by
 `enpicie/gh-action-workflow-terraform-run`. Lambda layers are rebuilt only when a
 `requirements.txt` changes. Use *force_rebuild_layer* to override.
 
@@ -181,70 +239,6 @@ make lint
 
 There is no local Discord stack. Interactions need the deployed endpoint, so test
 end to end on dev.
-
-## Removing optional features
-
-Each feature's Terraform file also grants its IAM permissions, so deleting the
-file removes them too. After removing a feature:
-
-1. Run `make test`.
-2. Run `make lint`. It flags imports the removal left unused, and
-   `ruff check --fix .` removes them.
-3. Push, and let `terraform validate` in CI catch any Terraform reference you missed.
-
-> [!WARNING]
-> Removing a feature from a bot that's **already deployed** destroys its AWS
-> resources on the next deploy, including DynamoDB data.
-
-### DynamoDB
-
-- **Terraform:** delete `terraform/infra/dynamodb.tf`. Remove the
-  `DYNAMODB_TABLE_NAME` env lines in `main.tf` and `deferred_worker.tf`, and the
-  `dynamodb_table_name` output.
-- **Bot:** delete `src/database/` and `src/commands/notes/` (plus its line in
-  `command_map.py` and `NOTE_NOT_FOUND` in `bot_messages.py`). Remove
-  `dynamodb_table` from `src/aws_services.py` and `src/aws_client.py`, and
-  `DYNAMODB_TABLE_NAME` from `src/constants.py`.
-- **Worker:** remove `dynamodb_table` and `DYNAMODB_TABLE_NAME` from
-  `worker_aws_services.py`, `worker_aws_client.py` and `worker_constants.py`.
-- **Tests and config:** delete `tests/commands/test_notes_commands.py`. Drop
-  `mypy-boto3-dynamodb` from `requirements.txt` and the line in `.env.example`.
-
-### Deferred worker
-
-- **Terraform:** delete `terraform/infra/deferred_worker.tf`. Remove the
-  `DEFERRED_WORKER_QUEUE_URL` env line in `main.tf`, the
-  `deferred_worker_*_policy` blocks in `dynamodb.tf` and `secrets.tf`, the two
-  `deferred_worker_*` outputs, and the two `deferred_worker_lambda_layer_*`
-  variables.
-- **Pipeline:** in `workflow-deploy.yml`, remove the `DEFERRED_WORKER_NAME` env,
-  the two "Deferred Worker" steps, their log lines, and the two
-  `TF_VAR_deferred_worker_*` lines.
-- **Code:** delete `jobs/deferred_worker/`, `src/utils/deferred_dispatch.py` and
-  `src/commands/deferred_example/` (plus its line in `command_map.py`). Remove
-  `deferred_worker_sqs_queue` from `src/aws_services.py` and `src/aws_client.py`,
-  and `SQS_DEFERRED_WORKER_QUEUE_URL` from `src/constants.py`.
-- **Tests and config:** delete `tests/deferred_worker/`,
-  `tests/commands/test_deferred_example_commands.py`,
-  `tests/test_job_module_names.py` and `tests/job_imports.py` (restore the last
-  two when you add a job). Drop `mypy-boto3-sqs` from `requirements.txt`, the
-  worker lines in the `Makefile`, and the line in `.env.example`.
-
-### Bot token secret
-
-- **Terraform:** delete `terraform/infra/secrets.tf`. Remove the
-  `DISCORD_BOT_TOKEN_SECRET_NAME` env lines in `main.tf` and
-  `deferred_worker.tf`, and the `discord_bot_token` variable.
-- **Pipeline:** in `workflow-deploy.yml`, remove `TF_VAR_discord_bot_token` and
-  the `DISCORD_BOT_TOKEN` secret input, and remove the matching
-  `DISCORD_BOT_TOKEN:` lines in `development.yml` and `release.yml`. Keep the
-  `DISCORD_BOT_TOKEN_*` repo secrets: command registration still uses them.
-- **Code:** delete `src/utils/discord_api_helper.py` and the `server-info`
-  command (function and mapping entry). Remove `DISCORD_BOT_TOKEN_SECRET_NAME`
-  from `src/constants.py`, and both it and `get_discord_bot_token` from
-  `worker_constants.py`.
-- **Tests and config:** delete `tests/utils/test_discord_api_helper.py` and the
-  line in `.env.example`.
 
 ## Conventions
 

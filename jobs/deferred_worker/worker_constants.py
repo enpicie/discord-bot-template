@@ -1,11 +1,12 @@
 import os
 
-import boto3
+import boto3  # [feature:bot_token]
 
 # All injected by Terraform (terraform/infra/deferred_worker.tf). See .env.example.
 AWS_REGION = os.environ.get("REGION")
-DISCORD_BOT_TOKEN_SECRET_NAME = os.environ.get("DISCORD_BOT_TOKEN_SECRET_NAME")
-DYNAMODB_TABLE_NAME = os.environ.get("DYNAMODB_TABLE_NAME")
+DISCORD_BOT_TOKEN_SECRET_NAME = os.environ.get("DISCORD_BOT_TOKEN_SECRET_NAME")  # [feature:bot_token]
+DYNAMODB_TABLE_NAME = os.environ.get("DYNAMODB_TABLE_NAME")  # [feature:dynamodb]
+# [feature:bot_token]
 
 _discord_bot_token = None
 _secretsmanager_client = None
@@ -30,3 +31,4 @@ def get_discord_bot_token() -> str:
         response = _get_secretsmanager_client().get_secret_value(SecretId=DISCORD_BOT_TOKEN_SECRET_NAME)
         _discord_bot_token = response["SecretString"]
     return _discord_bot_token
+# [/feature:bot_token]

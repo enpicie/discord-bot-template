@@ -1,5 +1,5 @@
 from aws_services import AWSServices
-import utils.discord_api_helper as discord_api_helper
+import utils.discord_api_helper as discord_api_helper  # [feature:bot_token+examples]
 from commands.models.discord_event import DiscordEvent
 from commands.models.response_message import ResponseMessage
 
@@ -16,6 +16,7 @@ def give_help(event: DiscordEvent, aws_services: AWSServices) -> ResponseMessage
 
     lines = [f"`/{name}` — {entry['description']}" for name, entry in sorted(command_map.command_map.items())]
     return ResponseMessage(content="**Commands**\n" + "\n".join(lines)).with_silent_pings()
+# [feature:bot_token+examples]
 
 
 def server_info(event: DiscordEvent, aws_services: AWSServices) -> ResponseMessage:
@@ -25,3 +26,4 @@ def server_info(event: DiscordEvent, aws_services: AWSServices) -> ResponseMessa
     if guild_name is None:
         return ResponseMessage(content="I couldn't look up this server — am I a member of it?")
     return ResponseMessage(content=f"This server is **{guild_name}** (ID `{server_id}`).")
+# [/feature:bot_token+examples]

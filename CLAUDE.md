@@ -2,16 +2,17 @@
 
 ## Project
 
-Serverless Discord bot on AWS Lambda, started from enpicie/discord-bot-template
-(the same foundation as Adomi-san). Replace this line with what the bot does.
+my-discord-bot — serverless Discord bot on AWS Lambda, generated from
+enpicie/discord-bot-template (the same foundation as Adomi-san). Replace this
+line with what the bot does.
 
 ## Stack
 
 - **Python 3.12** — Lambda runtime; single language across bot, jobs, and scripts.
 - **AWS Lambda + API Gateway v2** — serverless HTTP entry point for Discord interactions; zero idle cost.
-- **DynamoDB** (single table, pay-per-request) — bot state, keyed per Discord server.
-- **SQS + deferred worker Lambda** — work that can't finish inside Discord's 3-second deadline.
-- **Secrets Manager** — Discord bot token, fetched at runtime by name.
+- **DynamoDB** (single table, pay-per-request) — bot state, keyed per Discord server.  <!-- [feature:dynamodb] -->
+- **SQS + deferred worker Lambda** — work that can't finish inside Discord's 3-second deadline.  <!-- [feature:deferred_worker] -->
+- **Secrets Manager** — Discord bot token, fetched at runtime by name.  <!-- [feature:bot_token] -->
 - **Terraform (S3 remote state via org composite action)** — one root, `terraform/infra`; state keyed per project/env.
 - **GitHub Actions** — dev pipeline on non-main pushes, release pipeline on version tags.
 
@@ -24,11 +25,11 @@ src/                      # Main bot Lambda (Discord interactions)
   commands/<group>/       # One directory per command group
     mapping.py            # Group's CommandMapping dict (self-discovery)
   commands/command_map.py # Merges every group's mapping.py into the registry
-  database/               # DynamoDB access + dataclass models
+  database/               # DynamoDB access + dataclass models  # [feature:dynamodb]
   utils/                  # Auth, Discord API, messages, deferred dispatch
-jobs/deferred_worker/     # Independent Lambda zip. CANNOT import src/ —
-                          # shared logic is duplicated with MIRROR comments.
-terraform/infra/          # Bot Lambda, API GW, DynamoDB, SQS + worker, secret
+jobs/deferred_worker/     # Independent Lambda zip. CANNOT import src/ —  # [feature:deferred_worker]
+                          # shared logic is duplicated with MIRROR comments.  # [feature:deferred_worker]
+terraform/infra/          # Bot Lambda, API Gateway, and one file per optional feature
 scripts/                  # Discord command registration
 tests/                    # pytest unit tests, mirror source layout
 ```
@@ -47,9 +48,11 @@ The Code Style rules at the bottom of this file (imports, Discord mentions, logg
 
 - **Import carve-out:** Classes, dataclasses, exceptions, and TypedDicts MAY be from-imported; functions/constants of internal modules must use module-alias imports.
 - **Command self-discovery:** to add a command group, create `src/commands/<group>/mapping.py` with the group's `CommandMapping` dict and merge it in `src/commands/command_map.py`. Register with Discord via the register-commands workflow.
+<!-- [feature:deferred_worker] -->
 - **Jobs are self-contained:** `jobs/<name>/` packages cannot import from `src/`. When logic must exist in both places, duplicate it and mark both copies with a MIRROR comment; never import across the boundary.
 - **Job module names are unique across jobs and distinct from `src/`'s top-level names.** Each job imports by bare name, and every job directory plus `src/` share one `sys.path` under pytest. `tests/test_job_module_names.py` enforces both; `handler.py` is the one allowed repeat.
 - **Anything that can exceed Discord's 3s deadline defers.** The command handler validates, calls `deferred_dispatch.dispatch(...)`, and returns a `⏳` placeholder; `jobs/deferred_worker` does the work and posts a followup.
+<!-- [/feature:deferred_worker] -->
 
 ## Do Not Modify Without Explicit Instruction
 

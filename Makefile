@@ -6,30 +6,25 @@ venv:
 
 # Single command to do everything: venv, install, run tests
 test: venv
-	@bash -c "\
-		source .venv/bin/activate && \
-		pip install -r requirements-dev.txt && \
-		pip install -r jobs/deferred_worker/requirements.txt && \
-		export PYTHONPATH=\"\$$PYTHONPATH:$(PWD)/src\" && \
-		pytest tests/ && \
-		deactivate \
-	"
+	@.venv/bin/pip install -q -r requirements-dev.txt
+# [feature:deferred_worker]
+	@.venv/bin/pip install -q -r jobs/deferred_worker/requirements.txt
+# [/feature:deferred_worker]
+	@PYTHONPATH="$$PYTHONPATH:$(CURDIR)/src" .venv/bin/pytest tests/
 
 # Lint all Python source with ruff (installs dev requirements into the venv first)
 lint: venv
-	@bash -c "\
-		source .venv/bin/activate && \
-		pip install -r requirements-dev.txt && \
-		ruff check . && \
-		deactivate \
-	"
+	@.venv/bin/pip install -q -r requirements-dev.txt
+	@.venv/bin/ruff check .
 
 # Zip each Lambda's source into dist/, mirroring CI's upload action
 build:
 	@mkdir -p dist
-	@bash -c "cd src && zip -qr ../dist/bot.zip ."
-	@bash -c "cd jobs/deferred_worker && zip -qr ../../dist/deferred-worker.zip ."
-	@echo "Built dist/bot.zip and dist/deferred-worker.zip"
+	@cd src && zip -qr ../dist/bot.zip .
+# [feature:deferred_worker]
+	@cd jobs/deferred_worker && zip -qr ../../dist/deferred-worker.zip .
+# [/feature:deferred_worker]
+	@echo "Built Lambda zips in dist/"
 
 # There is no local Discord stack — the bot only runs deployed behind API Gateway.
 dev:

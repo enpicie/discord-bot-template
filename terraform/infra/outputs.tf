@@ -8,11 +8,14 @@ output "interactions_endpoint_url" {
   value       = "${aws_apigatewayv2_stage.env_stage.invoke_url}/${var.app_name}"
 }
 
+# [feature:dynamodb]
 output "dynamodb_table_name" {
   description = "Name of the bot's DynamoDB table"
   value       = aws_dynamodb_table.bot_table.name
 }
+# [/feature:dynamodb]
 
+# [feature:deferred_worker]
 output "deferred_worker_queue_url" {
   description = "URL of the SQS queue feeding the deferred worker"
   value       = aws_sqs_queue.deferred_worker.url
@@ -22,3 +25,4 @@ output "deferred_worker_dlq_url" {
   description = "URL of the deferred worker's dead-letter queue"
   value       = aws_sqs_queue.deferred_worker_dlq.url
 }
+# [/feature:deferred_worker]

@@ -1,6 +1,5 @@
 # ── Feature: DynamoDB ────────────────────────────────────────────────────────
-# Single table, pay-per-request. To remove: delete this file and the
-# DYNAMODB_TABLE_NAME env lines in main.tf and deferred_worker.tf (see README).
+# Single table, pay-per-request.
 
 resource "aws_dynamodb_table" "bot_table" {
   name         = "${var.app_name}-data-${var.deployment_env}"
@@ -60,8 +59,8 @@ resource "aws_iam_role_policy" "lambda_dynamodb_policy" {
   })
 }
 
-# Deferred worker's table access. Delete this block too if you remove the
-# deferred worker but keep DynamoDB.
+# [feature:deferred_worker]
+# Deferred worker's table access.
 resource "aws_iam_role_policy" "deferred_worker_dynamodb_policy" {
   name = "LambdaDynamoDBPolicy-${local.deferred_worker_name}-${var.deployment_env}"
   role = aws_iam_role.deferred_worker_role.id
@@ -87,3 +86,4 @@ resource "aws_iam_role_policy" "deferred_worker_dynamodb_policy" {
     ]
   })
 }
+# [/feature:deferred_worker]

@@ -12,9 +12,11 @@ general_commands_mapping: CommandMapping = {
         "description": "List all commands with descriptions",
         "params": []
     },
+    # [feature:bot_token+examples]
     "server-info": {
         "function": general_commands.server_info,
         "description": "Show this server's name (example Discord API call using the bot token)",
         "params": []
     },
+    # [/feature:bot_token+examples]
 }
