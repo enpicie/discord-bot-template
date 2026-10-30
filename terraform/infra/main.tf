@@ -7,39 +7,26 @@ data "aws_s3_object" "lambda_zip_latest" {
   key    = "${var.app_name}/${var.app_name}-latest.zip"
 }
 
-resource "aws_iam_role" "lambda_exec_role" {
-  name = "LambdaExecutionRole-${var.app_name}-${var.deployment_env}"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [{
-      Action = "sts:AssumeRole",
-      Principal = {
-        Service = "lambda.amazonaws.com"
-      },
-      Effect = "Allow",
-      Sid    = ""
-    }]
-  })
+# Layer with the bot's dependencies (requirements.txt), including PyNaCl for
+# the Discord signature check.
+data "aws_s3_object" "app_layer_zip" {
+  bucket = var.bucket_name
+  key    = var.app_lambda_layer_s3_key
 }
 
-resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
-  role       = aws_iam_role.lambda_exec_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-}
-
-# Layer with PyNaCl for cryptographic operations required by Discord auth
-data "aws_lambda_layer_version" "pynacl_layer" {
-  layer_name = "PyNaCl-311"
+data "aws_s3_object" "app_layer_hash" {
+  bucket = var.bucket_name
+  key    = var.app_lambda_layer_hash_s3_key
 }
 
 resource "aws_lambda_layer_version" "app_layer" {
-  layer_name               = "${var.app_name}-layer"
+  layer_name               = "${var.app_name}-layer-${var.deployment_env}"
   description              = "Lambda layer for dependencies of ${var.app_name}"
   s3_bucket                = var.bucket_name
-  s3_key                   = var.app_lambda_layer_s3_key
+  s3_key                   = data.aws_s3_object.app_layer_zip.key
   compatible_runtimes      = ["python${var.python_runtime}"]
   compatible_architectures = [var.architecture]
+  source_code_hash         = trimspace(data.aws_s3_object.app_layer_hash.body)
 }
 
 resource "aws_lambda_function" "bot_lambda" {
@@ -49,15 +36,22 @@ resource "aws_lambda_function" "bot_lambda" {
   handler       = "lambda_handler.lambda_handler"
   runtime       = "python${var.python_runtime}"
   architectures = [var.architecture]
-  role          = aws_iam_role.lambda_exec_role.arn
-  timeout       = 10
+  # Discord discards an interaction response that arrives later than 3s. Lambda
+  # scales CPU with memory, so this is sized for headroom on init + handler time,
+  # not for RSS. Do not lower without re-checking p99 Duration (see monitoring.tf).
+  memory_size = 1024
+  role        = aws_iam_role.lambda_exec_role.arn
+  timeout     = 10
   layers = [
-    data.aws_lambda_layer_version.pynacl_layer.arn,
     aws_lambda_layer_version.app_layer.arn
   ]
   environment {
     variables = {
-      PUBLIC_KEY = var.discord_public_key
+      REGION                        = var.aws_region
+      PUBLIC_KEY                    = var.discord_public_key
+      DISCORD_BOT_TOKEN_SECRET_NAME = aws_secretsmanager_secret.discord_bot_token.name # [feature:bot_token]
+      DYNAMODB_TABLE_NAME           = aws_dynamodb_table.bot_table.name                # [feature:dynamodb]
+      DEFERRED_WORKER_QUEUE_URL     = aws_sqs_queue.deferred_worker.url                # [feature:deferred_worker]
     }
   }
 
