@@ -11,7 +11,7 @@ on:
           - dev
           - prod
       command_name:
-        description: "Command name ('note-get'), prefix ('note' = all note-* commands), or 'all'"
+        description: "Command name ('ping'), prefix ('admin' = all admin-* commands), or 'all'"
         required: true
         type: string
 
@@ -22,7 +22,7 @@ on:
         required: true
         type: string
       command_name:
-        description: "Command name, prefix (e.g. 'note'), or 'all'"
+        description: "Command name, prefix (e.g. 'admin'), or 'all'"
         required: true
         type: string
     secrets:
