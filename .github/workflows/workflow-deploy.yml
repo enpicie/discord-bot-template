@@ -1,4 +1,5 @@
-name: 'Deploy Infrastructure via HCP Terraform'
+name: 'Deploy Infrastructure via Terraform'
+
 on:
   workflow_call:
     inputs:
@@ -11,7 +12,7 @@ on:
         required: true
         type: string
       python_runtime:
-        description: Python runtime for Lambda (e.g., 3.11)
+        description: Python runtime for Lambda (e.g., 3.12)
         required: true
         type: string
       aws_region:
@@ -22,18 +23,6 @@ on:
         description: S3 bucket name for storing build artifacts
         required: true
         type: string
-      hcp_terraform_org:
-        description: HCP Terraform Organization name
-        required: true
-        type: string
-      hcp_terraform_workspace:
-        description: HCP Terraform Workspace name
-        required: true
-        type: string
-      hcp_terraform_project:
-        description: HCP Terraform Project name
-        required: true
-        type: string
       app_version:
         description: Version of the application
         required: false
@@ -42,74 +31,135 @@ on:
         description: Public key for Discord verification (env-specific and used by Terraform)
         required: true
         type: string
+      lambda_architecture:
+        description: 'Lambda architecture to build layers for (x86_64 or arm64)'
+        required: false
+        default: 'x86_64'
+        type: string
+      force_rebuild_layer:
+        description: 'Force rebuild of all Lambda layers even if requirements.txt is unchanged'
+        required: false
+        default: false
+        type: boolean
     secrets:
-      AWS_S3_ARTIFACT_UPLOAD_ROLE_ARN:
+      AWS_ROLE_ARN_LAMBDA_APIGW_DDB_SQS:
         required: true
-      TF_API_TOKEN:
+      AWS_ROLE_ARN_S3:
         required: true
+      DISCORD_BOT_TOKEN:
+        required: true
+
+env:
+  # MIRROR: terraform/infra/deferred_worker.tf local.deferred_worker_name — keep in sync.
+  DEFERRED_WORKER_NAME: ${{ inputs.app_name }}-deferred-worker
 
 jobs:
-  deploy-via-hcp-terraform:
+  deploy-via-terraform:
     runs-on: ubuntu-latest
     steps:
-      - name: Setup HCP Terraform Workspace
-        id: setup_workspace
-        uses: enpicie/action-workflow-hcp-terraform-workspace-setup@v1.1.0
-        with:
-          tfc_organization: ${{ inputs.hcp_terraform_org }}
-          tfc_workspace: ${{ inputs.hcp_terraform_workspace }}
-          tfc_project: ${{ inputs.hcp_terraform_project }}
-          tfc_token: ${{ secrets.TF_API_TOKEN }}
+      - name: Checkout Repository
+        uses: actions/checkout@v5
 
-      - name: Attach IAM Permissions Variable Set to this Workspace
-        uses: enpicie/action-workflow-hcp-terraform-var-set-attach@v1.0.1
-        with:
-          tfc_organization: ${{ inputs.hcp_terraform_org }}
-          tfc_workspace_id: ${{ steps.setup_workspace.outputs.workspace_id }}
-          tfc_token: ${{ secrets.TF_API_TOKEN }}
-          var_set_name: ${{ vars.AWS_TF_ROLE_VARSET_LAMB_APIGW_DDB }}
-
-      - name: Build and Upload Lambda Layer Artifact to S3
+      # ── Main bot Lambda ───────────────────────────────────────────────────
+      - name: Build and Upload Lambda Layer Artifact to S3 - Main Lambda
         id: build_layer
-        uses: enpicie/action-workflow-build-python-lambda-layer-zip@v1.2.0
+        uses: enpicie/gh-action-workflow-build-python-lambda-layer-zip@v2.2.0
         with:
-          requirements_path: ./src/requirements.txt # Path relative the repository root
+          requirements_path: ./requirements.txt # Path relative the repository root
           app_name: ${{ inputs.app_name }}
           python_runtime: ${{ inputs.python_runtime }}
-          aws_role_arn: ${{ secrets.AWS_S3_ARTIFACT_UPLOAD_ROLE_ARN }}
+          architecture: ${{ inputs.lambda_architecture }}
+          s3_layer_bucket_name: ${{ inputs.artifact_s3_bucket }} # Store layer in same bucket for env as artifacts
+          aws_role_arn: ${{ secrets.AWS_ROLE_ARN_S3 }}
+          force_rebuild: ${{ inputs.force_rebuild_layer }}
 
-      - name: Upload Latest Lambda Zip to S3
-        uses: enpicie/action-workflow-upload-lambda-zip@v0.1.0
+      - name: Upload Latest Lambda Zip to S3 - Main Lambda
+        uses: enpicie/gh-action-workflow-upload-lambda-zip@v0.3.0
         with:
           source_directory: ./src
           app_name: ${{ inputs.app_name }}
           artifact_name: ${{ inputs.app_name }}-latest
           s3_bucket_name: ${{ inputs.artifact_s3_bucket }}
-          aws_role_arn: ${{ secrets.AWS_S3_ARTIFACT_UPLOAD_ROLE_ARN }}
+          aws_role_arn: ${{ secrets.AWS_ROLE_ARN_S3 }}
 
-      - name: Upload Version Lambda Zip to S3
+      - name: Upload Version Lambda Zip to S3 - Main Lambda
         if: ${{ inputs.app_version != '' }}
-        uses: enpicie/action-workflow-upload-lambda-zip@v0.1.0
+        uses: enpicie/gh-action-workflow-upload-lambda-zip@v0.3.0
         with:
           source_directory: ./src
           app_name: ${{ inputs.app_name }}
           artifact_name: ${{ inputs.app_name }}-${{ inputs.app_version }}
           s3_bucket_name: ${{ inputs.artifact_s3_bucket }}
-          aws_role_arn: ${{ secrets.AWS_S3_ARTIFACT_UPLOAD_ROLE_ARN }}
+          aws_role_arn: ${{ secrets.AWS_ROLE_ARN_S3 }}
 
-      - name: Deploy Application Config via HCP Terraform
-        uses: enpicie/action-workflow-hcp-terraform-run@v1.1.1
+      # ── Deferred worker Lambda (remove both steps if you drop the feature) ─
+      - name: Build and Upload Lambda Layer Artifact to S3 - Deferred Worker Lambda
+        id: build_layer_deferred_worker
+        uses: enpicie/gh-action-workflow-build-python-lambda-layer-zip@v2.2.0
         with:
-          terraform_directory: ./terraform
-          tfc_organization: ${{ inputs.hcp_terraform_org }}
-          tfc_workspace: ${{ inputs.hcp_terraform_workspace }}
-          tfc_token: ${{ secrets.TF_API_TOKEN }}
+          requirements_path: ./jobs/deferred_worker/requirements.txt
+          app_name: ${{ env.DEFERRED_WORKER_NAME }}
+          python_runtime: ${{ inputs.python_runtime }}
+          architecture: ${{ inputs.lambda_architecture }}
+          s3_layer_bucket_name: ${{ inputs.artifact_s3_bucket }}
+          aws_role_arn: ${{ secrets.AWS_ROLE_ARN_S3 }}
+          force_rebuild: ${{ inputs.force_rebuild_layer }}
+
+      - name: Upload Latest Lambda Zip to S3 - Deferred Worker Lambda
+        uses: enpicie/gh-action-workflow-upload-lambda-zip@v0.3.0
+        with:
+          source_directory: ./jobs/deferred_worker
+          app_name: ${{ env.DEFERRED_WORKER_NAME }}
+          artifact_name: ${{ env.DEFERRED_WORKER_NAME }}-latest
+          s3_bucket_name: ${{ inputs.artifact_s3_bucket }}
+          aws_role_arn: ${{ secrets.AWS_ROLE_ARN_S3 }}
+
+      - name: Log Terraform input variables
+        shell: bash
+        run: |
+          echo "=== Deployment Context ==="
+          echo "app_name=${APP_NAME}"
+          echo "deployment_env=${DEPLOYMENT_ENV}"
+          echo "aws_region=${AWS_REGION}"
+          echo "python_runtime=${PYTHON_RUNTIME}"
+          echo "artifact_s3_bucket=${ARTIFACT_S3_BUCKET}"
+
+          echo "=== Main Lambda ==="
+          echo "app_lambda_layer_s3_key=${APP_LAMBDA_LAYER_S3_KEY}"
+          echo "app_lambda_layer_hash_s3_key=${APP_LAMBDA_LAYER_HASH_S3_KEY}"
+
+          echo "=== Deferred Worker Lambda ==="
+          echo "deferred_worker_name=${DEFERRED_WORKER_NAME}"
+          echo "deferred_worker_lambda_layer_s3_key=${DEFERRED_WORKER_LAMBDA_LAYER_S3_KEY}"
+          echo "deferred_worker_lambda_layer_hash_s3_key=${DEFERRED_WORKER_LAMBDA_LAYER_HASH_S3_KEY}"
         env:
-          # Need explicit quotes to pass strings as string literaly correctly
-          TF_VAR_app_name: '"${{ inputs.app_name }}"'
-          TF_VAR_aws_region: '"${{ inputs.aws_region }}"'
-          TF_VAR_python_runtime: '"${{ inputs.python_runtime }}"'
-          TF_VAR_deployment_env: '"${{ inputs.deployment_env }}"'
-          TF_VAR_bucket_name: '"${{ inputs.artifact_s3_bucket }}"'
-          TF_VAR_app_lambda_layer_s3_key: '"${{ steps.build_layer.outputs.s3_artifact_key }}"'
-          TF_VAR_discord_public_key: '"${{ inputs.discord_public_key }}"'
+          APP_NAME: '${{ inputs.app_name }}'
+          DEPLOYMENT_ENV: '${{ inputs.deployment_env }}'
+          AWS_REGION: '${{ inputs.aws_region }}'
+          PYTHON_RUNTIME: '${{ inputs.python_runtime }}'
+          ARTIFACT_S3_BUCKET: '${{ inputs.artifact_s3_bucket }}'
+          APP_LAMBDA_LAYER_S3_KEY: '${{ steps.build_layer.outputs.s3_artifact_key }}'
+          APP_LAMBDA_LAYER_HASH_S3_KEY: '${{ steps.build_layer.outputs.s3_requirements_key }}'
+          DEFERRED_WORKER_LAMBDA_LAYER_S3_KEY: '${{ steps.build_layer_deferred_worker.outputs.s3_artifact_key }}'
+          DEFERRED_WORKER_LAMBDA_LAYER_HASH_S3_KEY: '${{ steps.build_layer_deferred_worker.outputs.s3_requirements_key }}'
+
+      - name: Deploy Application Config via Terraform
+        uses: enpicie/gh-action-workflow-terraform-run@v0.3.1
+        with:
+          aws_role_arn: ${{ secrets.AWS_ROLE_ARN_LAMBDA_APIGW_DDB_SQS }}
+          state_key: projects/${{ inputs.app_name }}/${{ inputs.deployment_env }}/infra.tfstate
+          aws_region: us-east-2 # Terraform state backend region — fixed independently of the deploy region
+          tf_directory: ./terraform/infra
+          tf_vars: |
+            TF_VAR_app_name=${{ inputs.app_name }}
+            TF_VAR_aws_region=${{ inputs.aws_region }}
+            TF_VAR_python_runtime=${{ inputs.python_runtime }}
+            TF_VAR_architecture=${{ inputs.lambda_architecture }}
+            TF_VAR_deployment_env=${{ inputs.deployment_env }}
+            TF_VAR_bucket_name=${{ inputs.artifact_s3_bucket }}
+            TF_VAR_app_lambda_layer_s3_key=${{ steps.build_layer.outputs.s3_artifact_key }}
+            TF_VAR_app_lambda_layer_hash_s3_key=${{ steps.build_layer.outputs.s3_requirements_key }}
+            TF_VAR_deferred_worker_lambda_layer_s3_key=${{ steps.build_layer_deferred_worker.outputs.s3_artifact_key }}
+            TF_VAR_deferred_worker_lambda_layer_hash_s3_key=${{ steps.build_layer_deferred_worker.outputs.s3_requirements_key }}
+            TF_VAR_discord_public_key=${{ inputs.discord_public_key }}
+            TF_VAR_discord_bot_token=${{ secrets.DISCORD_BOT_TOKEN }}

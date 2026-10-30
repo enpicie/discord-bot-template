@@ -1,0 +1,13 @@
+# MIRROR: jobs/deferred_worker/worker_aws_services.py — keep in sync (independent Lambda packaging prevents imports)
+from mypy_boto3_dynamodb.service_resource import Table
+from mypy_boto3_sqs.service_resource import Queue
+
+class AWSServices:
+    """Container bundling the AWS resource clients (DynamoDB table and SQS
+    queue) the bot needs, so handlers receive one injectable dependency."""
+    dynamodb_table: Table
+    deferred_worker_sqs_queue: Queue
+
+    def __init__(self, dynamodb_table: Table, deferred_worker_sqs_queue: Queue):
+        self.dynamodb_table = dynamodb_table
+        self.deferred_worker_sqs_queue = deferred_worker_sqs_queue

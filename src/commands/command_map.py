@@ -1,7 +1,15 @@
 from commands.models.command_mapping import CommandMapping
 
-from check_in.mapping import checkin_commands
+# Command self-discovery: each group under commands/<group>/ exposes its
+# CommandMapping in mapping.py; merge it in here. bot.py dispatches from this
+# dict and scripts/register_commands.py registers every entry with Discord.
+# One group per line, trailing commas, so adding or deleting a group is one line.
+from commands.general.mapping import general_commands_mapping
+from commands.notes.mapping import notes_commands_mapping
+from commands.deferred_example.mapping import deferred_example_commands_mapping
 
 command_map: CommandMapping = {
-    # General commands can be added here
-} | checkin_commands
+    **general_commands_mapping,
+    **notes_commands_mapping,
+    **deferred_example_commands_mapping,
+}

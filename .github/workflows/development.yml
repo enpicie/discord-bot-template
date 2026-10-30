@@ -6,66 +6,96 @@ on:
       - main
     tags:
       - '!*'
-
-permissions:
-  id-token: write # needed for AWS role assumption
-  contents: write
+    paths-ignore:
+      - 'scripts/**'
+      - '.github/workflows/workflow-register-commands.yml'
+  workflow_dispatch:
+    inputs:
+      run_register_commands:
+        description: 'Run Discord command registration after deployment'
+        required: false
+        default: false
+        type: boolean
+      force_rebuild_layer:
+        description: 'Force rebuild of all Lambda layers even if requirements.txt is unchanged'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
-  register-commands:
-    uses: ./.github/workflows/workflow-register-commands.yml
-    with:
-      app_id: ${{ vars.DISCORD_APP_ID_DEV }}
-    secrets:
-      DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN_DEV }}
-
   read-config:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       APP_NAME: ${{ steps.set-vars.outputs.APP_NAME }}
       AWS_REGION: ${{ steps.set-vars.outputs.AWS_REGION }}
+      ARTIFACT_S3_BUCKET_DEV: ${{ steps.set-vars.outputs.ARTIFACT_S3_BUCKET_DEV }}
       PYTHON_RUNTIME: ${{ steps.set-vars.outputs.PYTHON_RUNTIME }}
-      HCP_TERRAFORM_ORG: ${{ steps.set-vars.outputs.HCP_TERRAFORM_ORG }}
-      HCP_TERRAFORM_PROJECT: ${{ steps.set-vars.outputs.HCP_TERRAFORM_PROJECT }}
-      HCP_TERRAFORM_WORKSPACE: ${{ steps.set-vars.outputs.HCP_TERRAFORM_WORKSPACE }}
+      LAMBDA_ARCHITECTURE: ${{ steps.set-vars.outputs.LAMBDA_ARCHITECTURE }}
       DISCORD_PUBLIC_KEY: ${{ steps.set-vars.outputs.DISCORD_PUBLIC_KEY }}
       BRANCH_NAME: ${{ steps.set-vars.outputs.BRANCH_NAME }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Load config
         id: set-vars
-        # Config stored in repository root config.env
         run: |
           set -a
           source ./config.env
           set +a
-
-          # strip all before last / if present
           SHORT_BRANCH_NAME="${GITHUB_REF_NAME##*/}"
-
           echo "APP_NAME=$APP_NAME" >> $GITHUB_OUTPUT
           echo "AWS_REGION=$AWS_REGION" >> $GITHUB_OUTPUT
+          echo "ARTIFACT_S3_BUCKET_DEV=$ARTIFACT_S3_BUCKET_DEV" >> $GITHUB_OUTPUT
           echo "PYTHON_RUNTIME=$PYTHON_RUNTIME" >> $GITHUB_OUTPUT
-          echo "HCP_TERRAFORM_ORG=$HCP_TERRAFORM_ORG" >> $GITHUB_OUTPUT
-          echo "HCP_TERRAFORM_PROJECT=$HCP_TERRAFORM_PROJECT" >> $GITHUB_OUTPUT
-          echo "HCP_TERRAFORM_WORKSPACE=$HCP_TERRAFORM_WORKSPACE_DEV" >> $GITHUB_OUTPUT
+          echo "LAMBDA_ARCHITECTURE=$LAMBDA_ARCHITECTURE" >> $GITHUB_OUTPUT
           echo "DISCORD_PUBLIC_KEY=$DISCORD_PUBLIC_KEY_DEV" >> $GITHUB_OUTPUT
           echo "BRANCH_NAME=$SHORT_BRANCH_NAME" >> $GITHUB_OUTPUT
+
+  unit-test:
+    needs:
+      - read-config
+    permissions:
+      contents: read
+    uses: ./.github/workflows/workflow-run-unit-tests.yml
+    with:
+      python_runtime: ${{ needs.read-config.outputs.PYTHON_RUNTIME }}
 
   deploy:
     needs:
       - read-config
-      - register-commands
+      - unit-test
+    # The template repo itself (and any copy whose config.env still has the
+    # placeholder APP_NAME) only runs tests — it never deploys.
+    if: ${{ needs.read-config.outputs.APP_NAME != 'my-discord-bot' }}
+    permissions:
+      id-token: write
+      contents: read
     uses: ./.github/workflows/workflow-deploy.yml
     with:
       app_name: ${{ needs.read-config.outputs.APP_NAME }}
       aws_region: ${{ needs.read-config.outputs.AWS_REGION }}
       python_runtime: ${{ needs.read-config.outputs.PYTHON_RUNTIME }}
-      hcp_terraform_org: ${{ needs.read-config.outputs.HCP_TERRAFORM_ORG }}
-      hcp_terraform_project: ${{ needs.read-config.outputs.HCP_TERRAFORM_PROJECT }}
-      hcp_terraform_workspace: ${{ needs.read-config.outputs.HCP_TERRAFORM_WORKSPACE }}
+      lambda_architecture: ${{ needs.read-config.outputs.LAMBDA_ARCHITECTURE }}
       discord_public_key: ${{ needs.read-config.outputs.DISCORD_PUBLIC_KEY }}
       app_version: ${{ needs.read-config.outputs.BRANCH_NAME }}
       deployment_env: 'dev'
-      artifact_s3_bucket: 'enpicie-dev-lambda-artifacts'
-    secrets: inherit
+      artifact_s3_bucket: ${{ needs.read-config.outputs.ARTIFACT_S3_BUCKET_DEV }}
+      force_rebuild_layer: ${{ github.event.inputs.force_rebuild_layer == 'true' }}
+    secrets:
+      AWS_ROLE_ARN_LAMBDA_APIGW_DDB_SQS: ${{ secrets.AWS_ROLE_ARN_LAMBDA_APIGW_DDB_SQS }}
+      AWS_ROLE_ARN_S3: ${{ secrets.AWS_ROLE_ARN_S3 }}
+      DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN_DEV }}
+
+  register-commands:
+    needs: deploy
+    if: ${{ github.event.inputs.run_register_commands == 'true' || github.event.inputs.run_register_commands == true }}
+    permissions:
+      contents: read
+    uses: ./.github/workflows/workflow-register-commands.yml
+    with:
+      environment: 'dev'
+      command_name: 'all'
+    secrets:
+      DISCORD_BOT_TOKEN_DEV: ${{ secrets.DISCORD_BOT_TOKEN_DEV }}
+      DISCORD_BOT_TOKEN_PROD: ${{ secrets.DISCORD_BOT_TOKEN_PROD }}

@@ -10,14 +10,13 @@ variable "aws_region" {
 }
 
 variable "python_runtime" {
-  description = "Python runtime for Lambda (e.g., 3.11)"
+  description = "Python runtime for Lambda (e.g., 3.12)"
   type        = string
 }
 
 variable "architecture" {
   description = "Architecture for Lambda (e.g., x86_64, arm64)"
   type        = string
-  default     = "arm64"
 }
 
 variable "deployment_env" {
@@ -31,11 +30,32 @@ variable "bucket_name" {
 }
 
 variable "app_lambda_layer_s3_key" {
-  description = "Name of the Lambda layer built for this application"
+  description = "S3 key for .zip of Lambda layer built for this application"
+  type        = string
+}
+
+variable "app_lambda_layer_hash_s3_key" {
+  description = "S3 key for .hash file for Lambda layer built for this application"
+  type        = string
+}
+
+variable "deferred_worker_lambda_layer_s3_key" {
+  description = "S3 key for .zip of Lambda layer built for the deferred worker"
+  type        = string
+}
+
+variable "deferred_worker_lambda_layer_hash_s3_key" {
+  description = "S3 key for .hash file for Lambda layer built for the deferred worker"
   type        = string
 }
 
 variable "discord_public_key" {
   description = "Public Key for Discord bot verification"
   type        = string
+}
+
+variable "discord_bot_token" {
+  description = "Discord bot token — stored in Secrets Manager, fetched by Lambdas at runtime"
+  type        = string
+  sensitive   = true
 }
