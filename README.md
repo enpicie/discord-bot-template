@@ -1,31 +1,51 @@
 <!-- [template-only] -->
 # discord-bot-template
 
-Starter for a serverless Discord bot on AWS Lambda. It's the same foundation as
-[Adomi-san](https://github.com/enpicie/adomi-san-bot) with the Adomi-specific
-features taken out.
+Starter for a serverless Discord bot on AWS Lambda + API Gateway, on the same
+foundation as [Adomi-san](https://github.com/enpicie/adomi-san-bot) with the
+Adomi-specific features taken out.
+
+**Generator: https://enpicie.github.io/discord-bot-template/**
+
+Tick the features you need, preview every file you'll get, and download a zip.
+The zip is the new bot's repo, complete and with nothing template-specific left
+in it. Don't use GitHub's "Use this template" button on this repo: the raw files
+still contain the generator's feature markers.
 
 ## Start a new bot
 
-1. **Create the repo from this template.**
+1. **Generate it.** On the [generator page](https://enpicie.github.io/discord-bot-template/),
+   enter the bot name, tick the features, review the preview, and click
+   **Get template**.
+
+   | Feature | Adds |
+   |---|---|
+   | DynamoDB | One table for bot state, keyed per Discord server |
+   | Deferred worker (callbacks) | SQS queue + worker Lambda for commands that take longer than Discord's 3s deadline |
+   | Bot token in Secrets Manager | For Discord REST API calls (roles, channel posts). Replies and callbacks don't need it |
+   | Example commands | `/note-set`, `/note-get`, `/slow-echo`, `/server-info`, one for each feature you keep (`/ping` and `/help` always stay) |
+
+2. **Unzip it and make the first commit.**
 
    ```bash
-   gh repo create enpicie/<bot-name> --template enpicie/discord-bot-template --private --clone
+   unzip <bot-name>.zip && cd <bot-name>
+   ```
+   ```bash
+   git init -b main && git add -A && git commit -m "Initialize <bot-name>"
    ```
 
-2. **Generate the bot.** Answer the prompts: name, features, and public keys
-   (you can leave the keys blank and fill them in during step 3).
+3. **Create the GitHub repo and push.**
 
    ```bash
-   cd <bot-name> && python init_bot.py
+   gh repo create enpicie/<bot-name> --private --source . --push
    ```
 
-3. **Create the Discord apps.** Make a dev app and a prod app in the
+4. **Create the Discord apps.** Make a dev app and a prod app in the
    [Developer Portal](https://discord.com/developers/applications). Put each
    app's **Public Key** in `config.env` (`DISCORD_PUBLIC_KEY_DEV` / `_PROD`)
-   if you didn't enter it in step 2.
+   unless you entered them on the page, then commit.
 
-4. **Set the repo variables and secrets.** Each `gh secret set` prompts for the
+5. **Set the repo variables and secrets.** Each `gh secret set` prompts for the
    token (Bot tab → Reset Token).
 
    ```bash
@@ -44,26 +64,23 @@ features taken out.
    The AWS role secrets (`AWS_ROLE_ARN_LAMBDA_APIGW_DDB_SQS`, `AWS_ROLE_ARN_S3`)
    are set at the org level, so the new repo inherits them.
 
-5. **Commit and deploy dev.** Any branch other than `main` deploys dev.
+6. **Deploy dev.** Any branch other than `main` deploys dev.
 
-   ```bash
-   git add -A && git commit -m "Initialize <bot-name> from discord-bot-template" && git push
-   ```
    ```bash
    git checkout -b dev && git push -u origin dev
    ```
 
-6. **Point Discord at the bot.** Copy the `interactions_endpoint_url` output
+7. **Point Discord at the bot.** Copy the `interactions_endpoint_url` output
    from the deploy job's log into the dev app's **General Information →
    Interactions Endpoint URL**. Discord pings it to verify when you save.
 
-7. **Register the slash commands.** In the Actions tab, run **Dev Pipeline**
+8. **Register the slash commands.** In the Actions tab, run **Dev Pipeline**
    with *Run Discord command registration* checked. Then invite the bot
    (OAuth2 → URL Generator → scopes `bot` + `applications.commands`) and try `/ping`.
 
-8. **Go to prod.** Push a version tag. The Release Pipeline deploys prod and
+9. **Go to prod.** Push a version tag. The Release Pipeline deploys prod and
    then registers every command automatically. Point the prod app's
-   Interactions Endpoint URL at the prod output the same way as step 6.
+   Interactions Endpoint URL at the prod output the same way as step 7.
 
    ```bash
    git tag 1.0.0 && git push origin 1.0.0
@@ -74,49 +91,39 @@ release, opt-in on dev runs, and available any time from the standalone
 workflow. The generated README's
 [Command registration](#command-registration) section has the details.
 
-### What `init_bot.py` does
+## How the generator works
 
-It asks for the bot's name and which optional features to keep:
-
-| Feature | Adds |
-|---|---|
-| DynamoDB | One table for bot state, keyed per Discord server |
-| Deferred worker | SQS queue + worker Lambda for commands that take longer than Discord's 3s deadline |
-| Bot token secret | Bot token in Secrets Manager, for Discord REST API calls (roles, channel posts) |
-| Examples | `/note-set`, `/note-get`, `/slow-echo`, `/server-info` example commands (`/ping` and `/help` always stay) |
-
-The script then:
-1. Removes everything for the features you dropped: Terraform, Python, pipeline
-   steps, tests and docs.
-2. Sets the name everywhere, and deletes itself and the other template-only files.
-3. Prints the remaining one-time setup (Discord apps, `gh` commands for repo
-   secrets, the first push) as copyable commands.
-
-What's left is a normal repo with no template machinery in it.
-
-Run it without prompts by passing flags. `python init_bot.py --help` lists them:
-
-```bash
-python init_bot.py --name my-bot --no-deferred-worker --no-examples --yes
-```
-
-## How the template is built
+Nothing runs on a server. The **Publish Generator** workflow
+([pages.yml](./.github/workflows/pages.yml)) runs
+[generator/build_site.py](./generator/build_site.py) on every merge to `main`.
+That script renders all 16 feature combinations with
+[generator/engine.py](./generator/engine.py) and publishes them with the page in
+[site/](./site/). In your browser, the page swaps in your bot name and keys and
+writes the zip.
 
 Lines that belong to an optional feature carry a marker comment naming the
 feature. A marker at the end of a line covers that line. A marker alone on its
 line opens or closes a block. Files that belong entirely to one feature are
-listed in `FEATURE_PATHS`. The format is documented at the top of
-[init_bot.py](./init_bot.py).
+listed in `FEATURE_PATHS`. The format is documented at the top of `engine.py`.
 
 When you change the template, mark any new feature-specific line. Two checks
 keep the markers honest:
 
-- `tests/test_init_bot.py` generates every feature combination, then checks that
-  no markers remain and that every Python file still compiles.
-- The **Template CI** workflow generates the combinations and runs the generated
-  bot's own `make test`, `make lint` and `terraform validate` on each. It runs
-  on pull requests and on demand. Nothing in this repo deploys: the bot
-  pipelines skip themselves here.
+- `tests/test_generator.py` renders every combination, then checks that no
+  markers remain, that every Python file compiles, and that the site builds.
+- **Template CI** ([template-ci.yml](./.github/workflows/template-ci.yml)) runs
+  on pull requests. It builds the zips exactly as the page does, unzips them,
+  and runs each generated bot's own `make test`, `make lint` and
+  `terraform validate`.
+
+To preview the page locally:
+
+```bash
+python generator/build_site.py && python -m http.server -d _site 8000
+```
+
+Nothing in this repo deploys a bot. The bot pipelines skip themselves here, and
+the only thing published is the static generator page.
 
 Everything below this line becomes the new bot's README.
 

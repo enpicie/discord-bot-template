@@ -220,3 +220,7 @@ Thumbs.db
 # Local build output (make build) — dist/ is also covered by the packaging
 # section above; listed explicitly for clarity
 dist/
+# [template-only]
+# Generator site build output (template repo only)
+/_site/
+# [/template-only]
