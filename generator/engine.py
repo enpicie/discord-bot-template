@@ -22,6 +22,7 @@ directories that belong to one feature are listed in FEATURE_PATHS.
 """
 import itertools
 import re
+import subprocess
 from pathlib import Path
 
 TEMPLATE_ROOT = Path(__file__).resolve().parent.parent
@@ -31,19 +32,15 @@ PLACEHOLDER_NAME = "my-discord-bot"
 FEATURES = {
     "dynamodb": {
         "label": "DynamoDB",
-        "description": "One table for bot state, keyed per Discord server.",
+        "description": "One table for bot state, keyed per Discord server. Adds the /note example command.",
     },
     "deferred_worker": {
         "label": "Deferred worker (callbacks)",
-        "description": "SQS queue + worker Lambda for commands that take longer than Discord's 3-second deadline.",
+        "description": "SQS queue + worker Lambda for commands that take longer than Discord's 3-second deadline. Adds the /slow-echo example command.",
     },
     "bot_token": {
         "label": "Bot token in Secrets Manager",
         "description": "For Discord REST API calls (roles, channel posts, guild info). Replies and callbacks don't need it.",
-    },
-    "examples": {
-        "label": "Example commands",
-        "description": "/note-set, /note-get, /slow-echo, /server-info — one per feature you keep. /ping and /help always stay.",
     },
 }
 
@@ -52,6 +49,8 @@ FEATURE_PATHS = {
     "dynamodb": [
         "terraform/infra/dynamodb.tf",
         "src/database",
+        "src/commands/notes",
+        "tests/commands/test_notes_commands.py",
     ],
     "deferred_worker": [
         "terraform/infra/deferred_worker.tf",
@@ -60,20 +59,13 @@ FEATURE_PATHS = {
         "tests/deferred_worker",
         "tests/job_imports.py",
         "tests/test_job_module_names.py",
+        "src/commands/deferred_example",
+        "tests/commands/test_deferred_example_commands.py",
     ],
     "bot_token": [
         "terraform/infra/secrets.tf",
         "src/utils/discord_api_helper.py",
         "tests/utils/test_discord_api_helper.py",
-    ],
-    "dynamodb+examples": [
-        "src/commands/notes",
-        "tests/commands/test_notes_commands.py",
-    ],
-    "deferred_worker+examples": [
-        "src/commands/deferred_example",
-        "tests/commands/test_deferred_example_commands.py",
-        "jobs/deferred_worker/slow_echo_commands.py",
     ],
 }
 
@@ -175,6 +167,19 @@ def _is_dropped(rel: str, enabled: set) -> bool:
     )
 
 
+def _template_files(root: Path) -> list:
+    """Every file git would ship: tracked plus new-but-not-ignored, as posix paths.
+
+    Asking git (instead of walking the folder) keeps gitignored local files —
+    .env, .claude/, editor state — out of the bundles on a developer machine.
+    """
+    result = subprocess.run(
+        ["git", "-C", str(root), "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+        capture_output=True, check=True,
+    )
+    return sorted({p for p in result.stdout.decode("utf-8").split("\0") if p})
+
+
 def render(enabled: set, root: Path = TEMPLATE_ROOT) -> dict:
     """Return {relative posix path: text} for a bot with `enabled` features.
 
@@ -182,11 +187,10 @@ def render(enabled: set, root: Path = TEMPLATE_ROOT) -> dict:
     Every template file must be UTF-8 text — the page builds the zip from text.
     """
     files = {}
-    for path in sorted(root.rglob("*")):
-        rel_parts = path.relative_to(root).parts
-        if not path.is_file() or any(part in SKIP_PARTS for part in rel_parts):
+    for rel in _template_files(root):
+        path = root / rel
+        if any(part in SKIP_PARTS for part in rel.split("/")) or not path.is_file():
             continue
-        rel = "/".join(rel_parts)
         if _is_dropped(rel, enabled):
             continue
         try:

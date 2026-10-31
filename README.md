@@ -18,12 +18,12 @@ still contain the generator's feature markers.
    enter the bot name, tick the features, review the preview, and click
    **Get template**.
 
-   | Feature | Adds |
-   |---|---|
-   | DynamoDB | One table for bot state, keyed per Discord server |
-   | Deferred worker (callbacks) | SQS queue + worker Lambda for commands that take longer than Discord's 3s deadline |
-   | Bot token in Secrets Manager | For Discord REST API calls (roles, channel posts). Replies and callbacks don't need it |
-   | Example commands | `/note-set`, `/note-get`, `/slow-echo`, `/server-info`, one for each feature you keep (`/ping` and `/help` always stay) |
+   | Feature | Adds | Example command |
+   |---|---|---|
+   | *(always)* | Lambda + API Gateway, command discovery, pipelines, tests | `/ping` |
+   | DynamoDB | One table for bot state, keyed per Discord server | `/note` |
+   | Deferred worker (callbacks) | SQS queue + worker Lambda for commands that take longer than Discord's 3s deadline | `/slow-echo` |
+   | Bot token in Secrets Manager | For Discord REST API calls (roles, channel posts). Replies and callbacks don't need it | — (`discord_api_helper.py` is ready to call) |
 
 2. **Unzip it and make the first commit.**
 
@@ -237,20 +237,19 @@ Error handling:
 - `tests/commands/test_command_map.py` checks every entry against Discord's
   registration rules, so a bad name or a description over 100 characters fails
   in CI, not at registration.
-<!-- [feature:examples] -->
 
-## Example commands
+## Starter commands
 
-| Command | Shows |
-|---|---|
-| `/ping`, `/help` | The minimum: endpoint, signature check, dispatch; reading the command map |
-| `/note-set`, `/note-get` | DynamoDB reads and writes, a permission check, autocomplete |  <!-- [feature:dynamodb] -->
-| `/slow-echo` | The deferred pattern: ⏳ placeholder, then a followup from the worker |  <!-- [feature:deferred_worker] -->
-| `/server-info` | A Discord REST call using the bot token from Secrets Manager |  <!-- [feature:bot_token] -->
+| Command | Group | Shows |
+|---|---|---|
+| `/ping` | `general` | The minimum: endpoint, signature check, dispatch |
+| `/note name [content]` | `notes` | DynamoDB reads and writes, a permission check (saving needs Manage Server), autocomplete |  <!-- [feature:dynamodb] -->
+| `/slow-echo text` | `deferred_example` | The deferred pattern: ⏳ placeholder, then a followup from the worker |  <!-- [feature:deferred_worker] -->
 
-Delete the example groups (and their line in `command_map.py`) once you've
-built your own.
-<!-- [/feature:examples] -->
+<!-- [feature:dynamodb|deferred_worker] -->
+Replace the example groups with your own (and update their lines in
+`command_map.py`) once you've built your own commands.
+<!-- [/feature:dynamodb|deferred_worker] -->
 <!-- [feature:deferred_worker] -->
 
 ## Deferred commands

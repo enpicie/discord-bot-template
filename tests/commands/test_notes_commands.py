@@ -21,7 +21,7 @@ def _make_event(options: list, permissions: str = _MANAGE_SERVER) -> DiscordEven
     return DiscordEvent({
         "guild_id": _SERVER_ID,
         "channel_id": "222333444555666777",
-        "data": {"name": "note-set", "options": options},
+        "data": {"name": "note", "options": options},
         "member": {
             "user": {"id": "111222333444555666", "username": "TestUser"},
             "permissions": permissions,
@@ -52,32 +52,37 @@ class TestNotesCommands(unittest.TestCase):
         )
         self.aws_services = _AWSServices(table)
 
-    def _set(self, name: str, content: str):
-        return notes_commands.note_set(_make_event([_option("name", name), _option("content", content)]), self.aws_services)
+    def _save(self, name: str, content: str, permissions: str = _MANAGE_SERVER):
+        event = _make_event([_option("name", name), _option("content", content)], permissions)
+        return notes_commands.note(event, self.aws_services)
 
-    def test_set_then_get_round_trips_the_note(self):
-        self._set("Rules", "Be nice.")
-        response = notes_commands.note_get(_make_event([_option("name", "Rules")]), self.aws_services)
-        self.assertIn("Be nice.", response.content)
+    def _show(self, name: str):
+        return notes_commands.note(_make_event([_option("name", name)]), self.aws_services)
 
-    def test_get_is_case_and_whitespace_insensitive(self):
-        self._set("House Rules", "Be nice.")
-        response = notes_commands.note_get(_make_event([_option("name", "  house   RULES ")]), self.aws_services)
-        self.assertIn("Be nice.", response.content)
+    def test_save_then_show_round_trips_the_note(self):
+        self.assertIn("Saved", self._save("Rules", "Be nice.").content)
+        self.assertIn("Be nice.", self._show("Rules").content)
 
-    def test_get_missing_note_returns_not_found_message(self):
-        response = notes_commands.note_get(_make_event([_option("name", "nope")]), self.aws_services)
-        self.assertEqual(response.content, bot_messages.NOTE_NOT_FOUND)
+    def test_show_is_case_and_whitespace_insensitive(self):
+        self._save("House Rules", "Be nice.")
+        self.assertIn("Be nice.", self._show("  house   RULES ").content)
 
-    def test_set_without_manage_server_is_refused_and_writes_nothing(self):
-        event = _make_event([_option("name", "Rules"), _option("content", "x")], permissions="0")
-        response = notes_commands.note_set(event, self.aws_services)
+    def test_show_missing_note_returns_not_found_message(self):
+        self.assertEqual(self._show("nope").content, bot_messages.NOTE_NOT_FOUND)
+
+    def test_save_without_manage_server_is_refused_and_writes_nothing(self):
+        response = self._save("Rules", "x", permissions="0")
         self.assertEqual(response.content, bot_messages.REQUIRE_MANAGE_SERVER)
         self.assertEqual(self.aws_services.dynamodb_table.scan()["Count"], 0)
 
+    def test_show_does_not_need_manage_server(self):
+        self._save("Rules", "Be nice.")
+        event = _make_event([_option("name", "Rules")], permissions="0")
+        self.assertIn("Be nice.", notes_commands.note(event, self.aws_services).content)
+
     def test_autocomplete_suggests_matching_note_names(self):
-        self._set("Rules", "a")
-        self._set("Schedule", "b")
+        self._save("Rules", "a")
+        self._save("Schedule", "b")
         response = autocomplete_handlers.note_name_autocomplete(_make_event([_option("name", "ru")]), self.aws_services)
         self.assertEqual([c.name for c in response.choices], ["Rules"])
 

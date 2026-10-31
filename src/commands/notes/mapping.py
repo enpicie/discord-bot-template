@@ -5,32 +5,12 @@ from commands.models.command_param import CommandParam
 import commands.notes.notes_commands as notes_commands
 import commands.notes.autocomplete_handlers as autocomplete_handlers
 
-# Example group showing DynamoDB usage and autocomplete. Delete this group (and
-# its line in command_map.py) when you start your own bot.
+# Example group showing DynamoDB reads/writes, a permission check and
+# autocomplete. Replace it with your own (and its line in command_map.py).
 notes_commands_mapping: CommandMapping = {
-    "note-set": {
-        "function": notes_commands.note_set,
-        "description": "Save a note for this server (requires Manage Server)",
-        "params": [
-            CommandParam(
-                name="name",
-                description="Name of the note",
-                param_type=AppCommandOptionType.string,
-                required=True,
-                choices=None,
-            ),
-            CommandParam(
-                name="content",
-                description="What the note says",
-                param_type=AppCommandOptionType.string,
-                required=True,
-                choices=None,
-            ),
-        ]
-    },
-    "note-get": {
-        "function": notes_commands.note_get,
-        "description": "Show a saved note",
+    "note": {
+        "function": notes_commands.note,
+        "description": "Show a saved note, or save one by adding content (saving needs Manage Server)",
         "params": [
             CommandParam(
                 name="name",
@@ -40,6 +20,13 @@ notes_commands_mapping: CommandMapping = {
                 choices=None,
                 autocomplete=True,
                 autocomplete_handler=autocomplete_handlers.note_name_autocomplete,
+            ),
+            CommandParam(
+                name="content",
+                description="Text to save under this name (leave out to show the note)",
+                param_type=AppCommandOptionType.string,
+                required=False,
+                choices=None,
             ),
         ]
     },

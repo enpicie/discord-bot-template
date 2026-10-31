@@ -35,16 +35,16 @@ class TestProcessText(unittest.TestCase):
         self.assertEqual(engine.process_text(text, set()), "a\nd\n")
 
     def test_and_or_expressions(self):
-        both = "x  # [feature:dynamodb+examples]\n"
+        both = "x  # [feature:dynamodb+bot_token]\n"
         either = "y  # [feature:dynamodb|deferred_worker]\n"
         self.assertEqual(engine.process_text(both, {"dynamodb"}), "")
-        self.assertEqual(engine.process_text(both, {"dynamodb", "examples"}), "x\n")
+        self.assertEqual(engine.process_text(both, {"dynamodb", "bot_token"}), "x\n")
         self.assertEqual(engine.process_text(either, {"deferred_worker"}), "y\n")
         self.assertEqual(engine.process_text(either, set()), "")
 
     def test_markdown_markers(self):
-        text = "<!-- [feature:examples] -->\nhi\n<!-- [/feature:examples] -->\n- item  <!-- [feature:examples] -->\n"
-        self.assertEqual(engine.process_text(text, {"examples"}), "hi\n- item\n")
+        text = "<!-- [feature:bot_token] -->\nhi\n<!-- [/feature:bot_token] -->\n- item  <!-- [feature:bot_token] -->\n"
+        self.assertEqual(engine.process_text(text, {"bot_token"}), "hi\n- item\n")
 
     def test_template_only_is_always_removed(self):
         text = "keep\n# [template-only]\ngone\n# [/template-only]\nalso gone  # [template-only]\n"
@@ -61,7 +61,7 @@ class TestProcessText(unittest.TestCase):
             "# [feature:dynamodb]\nx\n",                                 # unclosed
             "x\n# [/feature:dynamodb]\n",                                # stray close
             "y = f([feature:dynamodb])\n",                               # marker not trailing
-            "x  # [feature:dynamodb+examples|bot_token]\n",              # mixed operators
+            "x  # [feature:dynamodb+deferred_worker|bot_token]\n",            # mixed operators
         ):
             with self.subTest(bad=bad), self.assertRaises(engine.TemplateError):
                 engine.process_text(bad, ALL)
@@ -99,6 +99,8 @@ class TestRenderEveryCombination(unittest.TestCase):
                         for rel in paths:
                             self.assertTrue(any(f == rel or f.startswith(rel + "/") for f in files), rel)
                 self.assertFalse(any(f.startswith(("generator/", "site/")) for f in files))
+                # Only files git would ship — never gitignored local state.
+                self.assertFalse(any(f.startswith((".claude/", ".venv/", "_site/")) or f == ".env" for f in files))
 
                 for rel, text in files.items():
                     if rel.endswith(".py"):

@@ -38,7 +38,7 @@ def _matches(name: str, target: str) -> bool:
     """
     Returns True if the command name matches the target.
     - Exact match: name == target
-    - Prefix match: name starts with target + "-" (e.g. "note" matches "note-get")
+    - Prefix match: name starts with target + "-" (e.g. "admin" matches "admin-ban")
     """
     return name == target or name.startswith(target + "-")
 
@@ -48,7 +48,7 @@ def main():
     normalized = COMMAND_NAME.strip().lower()
     should_register_all = normalized == "all"
     # Prefix mode when input has no hyphen and isn't 'all' (e.g. "note", "general")
-    # but also supports exact names like "note-get" or hyphenated prefixes
+    # but also supports exact names like "admin-ban" or hyphenated prefixes
     is_multi = should_register_all or not any(normalized == name for name in command_map.command_map)
     headers = {
         "Authorization": f"Bot {TOKEN}",

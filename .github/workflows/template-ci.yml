@@ -26,15 +26,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Combination keys from generator/engine.py combination_key: everything,
-        # each feature dropped alone, and the bare base.
+        # Every combination key from generator/engine.py combination_key.
         bundle:
-          - 'bot_token+deferred_worker+dynamodb+examples'
-          - 'bot_token+deferred_worker+examples'
-          - 'bot_token+dynamodb+examples'
-          - 'deferred_worker+dynamodb+examples'
           - 'bot_token+deferred_worker+dynamodb'
-          - 'examples'
+          - 'bot_token+deferred_worker'
+          - 'bot_token+dynamodb'
+          - 'deferred_worker+dynamodb'
+          - 'bot_token'
+          - 'deferred_worker'
+          - 'dynamodb'
           - 'base'
     name: generated-bot (${{ matrix.bundle }})
     steps:
