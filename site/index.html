@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Discord Bot Generator</title>
+  <meta name="description" content="Generate a serverless Discord bot starter (AWS Lambda + API Gateway) with only the features you need.">
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <header class="site-header">
+    <h1>Discord Bot Generator</h1>
+    <p class="lede">
+      A serverless Discord bot on AWS Lambda + API Gateway, on the same foundation as
+      <a href="https://github.com/enpicie/adomi-san-bot">Adomi-san</a>. Pick what you need,
+      preview the files, download the starter.
+    </p>
+  </header>
+
+  <main class="layout">
+    <form id="generator" class="panel" novalidate>
+      <h2>1. Configure</h2>
+
+      <div class="field">
+        <label for="name">Bot name</label>
+        <input id="name" name="name" autocomplete="off" spellcheck="false" placeholder="score-bot" required aria-describedby="name-help name-error">
+        <p id="name-help" class="help">Lowercase, hyphens. Every AWS resource is named from it.</p>
+        <p id="name-error" class="error" role="alert"></p>
+      </div>
+
+      <fieldset class="field">
+        <legend>Features</legend>
+        <p class="help">Always included: Lambda + API Gateway, command discovery, dev/release/register pipelines, tests, and a <code>/ping</code> command.</p>
+        <div id="features"></div>
+      </fieldset>
+
+      <details class="field">
+        <summary>Discord public keys <span class="optional">(optional — can be added to config.env later)</span></summary>
+        <label for="key-dev">Dev app public key</label>
+        <input id="key-dev" autocomplete="off" spellcheck="false" aria-describedby="key-dev-error">
+        <p id="key-dev-error" class="error" role="alert"></p>
+        <label for="key-prod">Prod app public key</label>
+        <input id="key-prod" autocomplete="off" spellcheck="false" aria-describedby="key-prod-error">
+        <p id="key-prod-error" class="error" role="alert"></p>
+      </details>
+
+      <button id="download" type="submit" class="primary">Get template</button>
+      <p id="status" class="help" aria-live="polite"></p>
+    </form>
+
+    <section class="panel preview" aria-labelledby="preview-title">
+      <h2 id="preview-title">2. Preview — exactly what you'll download</h2>
+      <p id="summary" class="help"></p>
+      <div class="preview-body">
+        <nav aria-label="Files"><ul id="tree" class="tree"></ul></nav>
+        <div class="viewer">
+          <p id="viewer-path" class="viewer-path">Select a file</p>
+          <pre id="viewer"><code></code></pre>
+        </div>
+      </div>
+    </section>
+
+    <section id="next-steps" class="panel steps" aria-labelledby="steps-title">
+      <h2 id="steps-title">3. Set it up</h2>
+      <ol id="steps"></ol>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <a href="https://github.com/enpicie/discord-bot-template">Source on GitHub</a>
+  </footer>
+</body>
+</html>

@@ -5,7 +5,7 @@ import time
 import worker_aws_client as aws_client
 import worker_messages
 import discord_followup
-import slow_echo_commands  # [feature:examples]
+import slow_echo_commands
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -14,7 +14,7 @@ logger.setLevel(logging.INFO)
 # deadline. The bot Lambda answers with a placeholder and enqueues here
 # (src/utils/deferred_dispatch.py); the key is the command_name it dispatched.
 _COMMAND_HANDLERS = {
-    "slow-echo": slow_echo_commands.handle_slow_echo,  # [feature:examples]
+    "slow-echo": slow_echo_commands.handle_slow_echo,
 }
 
 

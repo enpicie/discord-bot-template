@@ -7,10 +7,10 @@
 #############################
 GENERAL_ERROR = "Something went wrong! Please try again in a moment."
 REQUIRE_MANAGE_SERVER = "Sorry! Only users with the 'Manage Server' permission can do that."
-# [feature:dynamodb+examples]
+# [feature:dynamodb]
 
 #############################
 # Note Messages (example)  #
 #############################
-NOTE_NOT_FOUND = "No note found with that name. Use `/note-set` to create one."
-# [/feature:dynamodb+examples]
+NOTE_NOT_FOUND = "No note found with that name. Save one with `/note name content`."
+# [/feature:dynamodb]

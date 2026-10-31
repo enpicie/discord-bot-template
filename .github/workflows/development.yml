@@ -24,7 +24,7 @@ on:
 
 jobs:
   read-config:
-    # Bot pipelines never run in the template repo; init_bot.py strips this.  # [template-only]
+    # Bot pipelines never run in the template repo; the generator strips this.  # [template-only]
     if: ${{ github.repository != 'enpicie/discord-bot-template' }}  # [template-only]
     runs-on: ubuntu-latest
     permissions:

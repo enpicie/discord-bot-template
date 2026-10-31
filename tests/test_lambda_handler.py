@@ -40,7 +40,7 @@ class TestLambdaHandlerRouting(unittest.TestCase):
         self.assertEqual(response, constants.PING_PONG_RESPONSE)
 
     def test_application_command_routes_to_process_bot_command(self):
-        body = {"type": 2, "data": {"name": "help"}}
+        body = {"type": 2, "data": {"name": "ping"}}
         command_response = {"type": 4, "data": {"content": "command handled"}}
         with patch.object(lambda_handler.bot, "process_bot_command", return_value=command_response) as mock_process:
             response = lambda_handler.lambda_handler(_make_event(body), Mock())
@@ -48,7 +48,7 @@ class TestLambdaHandlerRouting(unittest.TestCase):
         self.assertEqual(response, command_response)
 
     def test_autocomplete_routes_to_process_input_autocomplete(self):
-        body = {"type": 4, "data": {"name": "note-get"}}
+        body = {"type": 4, "data": {"name": "note"}}
         autocomplete_response = {"type": 8, "data": {"choices": []}}
         with patch.object(lambda_handler.bot, "process_input_autocomplete", return_value=autocomplete_response) as mock_autocomplete:
             response = lambda_handler.lambda_handler(_make_event(body), Mock())

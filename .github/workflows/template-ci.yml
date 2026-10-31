@@ -1,5 +1,6 @@
-# Template-only: validates what init_bot.py generates. Removed from generated bots.
-# Never deploys — it builds each generated bot and runs that bot's own checks.
+# Template-only: validates what the generator page hands out. Never shipped in
+# a generated bot, never deploys — it builds each starter zip exactly the way
+# the page does, unzips it, and runs that bot's own checks.
 name: Template CI
 
 on:
@@ -17,47 +18,51 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Run init_bot.py unit tests
-        run: python -m unittest tests.test_init_bot -v
+      - name: Engine and site build tests
+        run: python -m unittest tests.test_generator -v
 
   generated-bot:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        # Each optional feature dropped alone, all dropped, and everything kept.
-        flags:
-          - ''
-          - '--no-dynamodb'
-          - '--no-deferred-worker'
-          - '--no-bot-token'
-          - '--no-examples'
-          - '--no-dynamodb --no-deferred-worker --no-bot-token'
-          - '--no-dynamodb --no-deferred-worker --no-bot-token --no-examples'
-    name: generated-bot (${{ matrix.flags || 'all features' }})
+        # Every combination key from generator/engine.py combination_key.
+        bundle:
+          - 'bot_token+deferred_worker+dynamodb'
+          - 'bot_token+deferred_worker'
+          - 'bot_token+dynamodb'
+          - 'deferred_worker+dynamodb'
+          - 'bot_token'
+          - 'deferred_worker'
+          - 'dynamodb'
+          - 'base'
+    name: generated-bot (${{ matrix.bundle }})
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
       - uses: hashicorp/setup-terraform@v3
 
-      - name: Generate bot
+      - name: Build site and the starter zip the page would hand out
         run: |
-          rsync -a --exclude .git ./ "$RUNNER_TEMP/bot/"
-          cd "$RUNNER_TEMP/bot"
-          python init_bot.py --name ci-test-bot --yes ${{ matrix.flags }}
+          python generator/build_site.py --out "$RUNNER_TEMP/site"
+          node site/test/make_zip.mjs "$RUNNER_TEMP/site" '${{ matrix.bundle }}' ci-test-bot "$RUNNER_TEMP/ci-test-bot.zip"
+          unzip -q "$RUNNER_TEMP/ci-test-bot.zip" -d "$RUNNER_TEMP"
 
       - name: Tests
-        working-directory: ${{ runner.temp }}/bot
+        working-directory: ${{ runner.temp }}/ci-test-bot
         run: make test
 
       - name: Lint
-        working-directory: ${{ runner.temp }}/bot
+        working-directory: ${{ runner.temp }}/ci-test-bot
         run: make lint
 
       - name: Terraform validate
-        working-directory: ${{ runner.temp }}/bot/terraform/infra
+        working-directory: ${{ runner.temp }}/ci-test-bot/terraform/infra
         run: |
           terraform init -backend=false -input=false
           terraform validate
